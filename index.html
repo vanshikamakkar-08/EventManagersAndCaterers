@@ -345,6 +345,15 @@
             background-color: var(--warning-color);
         }
 
+        .attendance-action-btn {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .attendance-action-btn:hover {
+            transform: scale(1.1);
+        }
+
         @media (max-width: 767.98px) {
             .sidebar {
                 display: none;
@@ -626,6 +635,36 @@
                         });
                     }, 500);
                 });
+            },
+
+            // Update attendance
+            updateAttendance: async (attendanceId, data) => {
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        resolve({
+                            success: true,
+                            data: {
+                                id: attendanceId,
+                                ...data
+                            }
+                        });
+                    }, 500);
+                });
+            },
+
+            // Add new attendance record
+            addAttendance: async (data) => {
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        resolve({
+                            success: true,
+                            data: {
+                                id: Math.floor(Math.random() * 1000),
+                                ...data
+                            }
+                        });
+                    }, 500);
+                });
             }
         };
 
@@ -789,9 +828,8 @@
         };
 
         // Navbar Component
-        const Navbar = () => {
+        const Navbar = ({ activePage, setActivePage }) => {
             const { user, logout } = useAuth();
-            const [activePage, setActivePage] = useState('dashboard');
 
             return (
                 <nav className="navbar navbar-expand-lg navbar-light bg-light">
@@ -1485,6 +1523,17 @@
         const Attendance = () => {
             const [attendance, setAttendance] = useState([]);
             const [loading, setLoading] = useState(true);
+            const [showModal, setShowModal] = useState(false);
+            const [showEditModal, setShowEditModal] = useState(false);
+            const [selectedRecord, setSelectedRecord] = useState(null);
+            const [newAttendance, setNewAttendance] = useState({
+                eventId: 1,
+                staffId: 1,
+                date: new Date().toISOString().split('T')[0],
+                checkIn: '',
+                checkOut: '',
+                status: 'Present'
+            });
 
             useEffect(() => {
                 const fetchAttendance = async () => {
@@ -1500,6 +1549,52 @@
 
                 fetchAttendance();
             }, []);
+
+            const handleAddAttendance = async (e) => {
+                e.preventDefault();
+                try {
+                    const res = await apiService.addAttendance(newAttendance);
+                    if (res.success) {
+                        // Add the new record to the state
+                        setAttendance([...attendance, res.data]);
+                        // Reset form and close modal
+                        setNewAttendance({
+                            eventId: 1,
+                            staffId: 1,
+                            date: new Date().toISOString().split('T')[0],
+                            checkIn: '',
+                            checkOut: '',
+                            status: 'Present'
+                        });
+                        setShowModal(false);
+                    }
+                } catch (err) {
+                    console.error('Error adding attendance:', err);
+                }
+            };
+
+            const handleUpdateAttendance = async (e) => {
+                e.preventDefault();
+                try {
+                    const res = await apiService.updateAttendance(selectedRecord.id, selectedRecord);
+                    if (res.success) {
+                        // Update the record in the state
+                        setAttendance(attendance.map(record => 
+                            record.id === selectedRecord.id ? res.data : record
+                        ));
+                        // Close modal
+                        setShowEditModal(false);
+                        setSelectedRecord(null);
+                    }
+                } catch (err) {
+                    console.error('Error updating attendance:', err);
+                }
+            };
+
+            const openEditModal = (record) => {
+                setSelectedRecord({...record});
+                setShowEditModal(true);
+            };
 
             const getStatusBadge = (status) => {
                 switch (status) {
@@ -1585,7 +1680,7 @@
                                 <button className="btn btn-outline-primary btn-sm me-2">
                                     <i className="fas fa-download me-1"></i> Export
                                 </button>
-                                <button className="btn btn-primary btn-sm">
+                                <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
                                     <i className="fas fa-plus me-1"></i> Mark Attendance
                                 </button>
                             </div>
@@ -1601,6 +1696,7 @@
                                             <th>Check In</th>
                                             <th>Check Out</th>
                                             <th>Status</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1614,6 +1710,13 @@
                                                 <td>{record.checkIn || '-'}</td>
                                                 <td>{record.checkOut || '-'}</td>
                                                 <td>{getStatusBadge(record.status)}</td>
+                                                <td>
+                                                    <i 
+                                                        className="fas fa-edit text-primary attendance-action-btn me-2" 
+                                                        onClick={() => openEditModal(record)}
+                                                        title="Edit Attendance"
+                                                    ></i>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1621,6 +1724,199 @@
                             </div>
                         </div>
                     </div>
+
+                    {/* Add Attendance Modal */}
+                    {showModal && (
+                        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                            <div className="modal-dialog">
+                                <div className="modal-content">
+                                    <div className="modal-header">
+                                        <h5 className="modal-title">Mark Attendance</h5>
+                                        <button type="button" className="btn-close" onClick={() => setShowModal(false)}></button>
+                                    </div>
+                                    <div className="modal-body">
+                                        <form onSubmit={handleAddAttendance}>
+                                            <div className="mb-3">
+                                                <label htmlFor="eventId" className="form-label">Event</label>
+                                                <select
+                                                    className="form-select"
+                                                    id="eventId"
+                                                    value={newAttendance.eventId}
+                                                    onChange={(e) => setNewAttendance({...newAttendance, eventId: parseInt(e.target.value)})}
+                                                    required
+                                                >
+                                                    <option value="1">Tech Conference 2025</option>
+                                                    <option value="2">Corporate Gala Dinner</option>
+                                                    <option value="3">Product Launch Event</option>
+                                                    <option value="4">Charity Fundraiser</option>
+                                                    <option value="5">Smith Wedding</option>
+                                                    <option value="6">Johnson Birthday Party</option>
+                                                </select>
+                                            </div>
+                                            <div className="mb-3">
+                                                <label htmlFor="staffId" className="form-label">Staff</label>
+                                                <select
+                                                    className="form-select"
+                                                    id="staffId"
+                                                    value={newAttendance.staffId}
+                                                    onChange={(e) => setNewAttendance({...newAttendance, staffId: parseInt(e.target.value)})}
+                                                    required
+                                                >
+                                                    <option value="1">Rohan</option>
+                                                    <option value="2">Harshit</option>
+                                                    <option value="3">Harman Deep</option>
+                                                </select>
+                                            </div>
+                                            <div className="mb-3">
+                                                <label htmlFor="date" className="form-label">Date</label>
+                                                <input
+                                                    type="date"
+                                                    className="form-control"
+                                                    id="date"
+                                                    value={newAttendance.date}
+                                                    onChange={(e) => setNewAttendance({...newAttendance, date: e.target.value})}
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="mb-3">
+                                                <label htmlFor="checkIn" className="form-label">Check In</label>
+                                                <input
+                                                    type="time"
+                                                    className="form-control"
+                                                    id="checkIn"
+                                                    value={newAttendance.checkIn}
+                                                    onChange={(e) => setNewAttendance({...newAttendance, checkIn: e.target.value})}
+                                                />
+                                            </div>
+                                            <div className="mb-3">
+                                                <label htmlFor="checkOut" className="form-label">Check Out</label>
+                                                <input
+                                                    type="time"
+                                                    className="form-control"
+                                                    id="checkOut"
+                                                    value={newAttendance.checkOut}
+                                                    onChange={(e) => setNewAttendance({...newAttendance, checkOut: e.target.value})}
+                                                />
+                                            </div>
+                                            <div className="mb-3">
+                                                <label htmlFor="status" className="form-label">Status</label>
+                                                <select
+                                                    className="form-select"
+                                                    id="status"
+                                                    value={newAttendance.status}
+                                                    onChange={(e) => setNewAttendance({...newAttendance, status: e.target.value})}
+                                                    required
+                                                >
+                                                    <option value="Present">Present</option>
+                                                    <option value="Late">Late</option>
+                                                    <option value="Absent">Absent</option>
+                                                </select>
+                                            </div>
+                                            <div className="d-flex justify-content-end">
+                                                <button type="button" className="btn btn-secondary me-2" onClick={() => setShowModal(false)}>
+                                                    Cancel
+                                                </button>
+                                                <button type="submit" className="btn btn-primary">
+                                                    Save Attendance
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Edit Attendance Modal */}
+                    {showEditModal && selectedRecord && (
+                        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                            <div className="modal-dialog">
+                                <div className="modal-content">
+                                    <div className="modal-header">
+                                        <h5 className="modal-title">Edit Attendance</h5>
+                                        <button type="button" className="btn-close" onClick={() => setShowEditModal(false)}></button>
+                                    </div>
+                                    <div className="modal-body">
+                                        <form onSubmit={handleUpdateAttendance}>
+                                            <div className="mb-3">
+                                                <label htmlFor="editEventName" className="form-label">Event</label>
+                                                <input
+                                                    type="text"
+                                                    className="form-control"
+                                                    id="editEventName"
+                                                    value={selectedRecord.eventName}
+                                                    disabled
+                                                />
+                                            </div>
+                                            <div className="mb-3">
+                                                <label htmlFor="editStaffName" className="form-label">Staff Name</label>
+                                                <input
+                                                    type="text"
+                                                    className="form-control"
+                                                    id="editStaffName"
+                                                    value={selectedRecord.staffName}
+                                                    disabled
+                                                />
+                                            </div>
+                                            <div className="mb-3">
+                                                <label htmlFor="editDate" className="form-label">Date</label>
+                                                <input
+                                                    type="date"
+                                                    className="form-control"
+                                                    id="editDate"
+                                                    value={selectedRecord.date}
+                                                    onChange={(e) => setSelectedRecord({...selectedRecord, date: e.target.value})}
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="mb-3">
+                                                <label htmlFor="editCheckIn" className="form-label">Check In</label>
+                                                <input
+                                                    type="time"
+                                                    className="form-control"
+                                                    id="editCheckIn"
+                                                    value={selectedRecord.checkIn || ''}
+                                                    onChange={(e) => setSelectedRecord({...selectedRecord, checkIn: e.target.value})}
+                                                />
+                                            </div>
+                                            <div className="mb-3">
+                                                <label htmlFor="editCheckOut" className="form-label">Check Out</label>
+                                                <input
+                                                    type="time"
+                                                    className="form-control"
+                                                    id="editCheckOut"
+                                                    value={selectedRecord.checkOut || ''}
+                                                    onChange={(e) => setSelectedRecord({...selectedRecord, checkOut: e.target.value})}
+                                                />
+                                            </div>
+                                            <div className="mb-3">
+                                                <label htmlFor="editStatus" className="form-label">Status</label>
+                                                <select
+                                                    className="form-select"
+                                                    id="editStatus"
+                                                    value={selectedRecord.status}
+                                                    onChange={(e) => setSelectedRecord({...selectedRecord, status: e.target.value})}
+                                                    required
+                                                >
+                                                    <option value="Present">Present</option>
+                                                    <option value="Late">Late</option>
+                                                    <option value="Absent">Absent</option>
+                                                </select>
+                                            </div>
+                                            <div className="d-flex justify-content-end">
+                                                <button type="button" className="btn btn-secondary me-2" onClick={() => setShowEditModal(false)}>
+                                                    Cancel
+                                                </button>
+                                                <button type="submit" className="btn btn-primary">
+                                                    Update Attendance
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -2133,7 +2429,7 @@
                 <div className="d-flex">
                     <Sidebar activePage={activePage} setActivePage={setActivePage} />
                     <div className="flex-grow-1">
-                        <Navbar />
+                        <Navbar activePage={activePage} setActivePage={setActivePage} />
                         <div className="container-fluid p-4">
                             {renderPage()}
                         </div>
